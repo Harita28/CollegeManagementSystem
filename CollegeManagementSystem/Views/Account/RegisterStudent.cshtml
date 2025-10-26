@@ -1,0 +1,15 @@
+@model CollegeManagementSystem.ViewModels.RegisterStudentViewModel
+@{
+    ViewData["Title"] = "Student Register";
+}
+<h2>Student Register</h2>
+
+<form method="post" asp-action="RegisterStudent">
+    <div class="mb-3"><label>Name</label><input asp-for="Name" class="form-control" /></div>
+    <div class="mb-3"><label>Email</label><input asp-for="Email" class="form-control" /></div>
+    <div class="mb-3"><label>Password</label><input asp-for="Password" class="form-control" type="password" /></div>
+    <div class="mb-3"><label>Branch</label><select asp-for="Branch" class="form-control" asp-items="Html.GetEnumSelectList<CollegeManagementSystem.Models.Branch>()"></select></div>
+    <div class="mb-3"><label>Semester</label><select asp-for="Semester" class="form-control" asp-items="Html.GetEnumSelectList<CollegeManagementSystem.Models.Semester>()"></select></div>
+    <div class="mb-3"><label>Year</label><input asp-for="Year" class="form-control" /></div>
+    <button class="btn btn-primary">Register</button>
+</form>

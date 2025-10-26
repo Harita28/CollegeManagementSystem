@@ -1,0 +1,40 @@
+@model IEnumerable<CollegeManagementSystem.Models.Assignment>
+@{
+    ViewData["Title"] = "Assignments";
+    var statuses = ViewBag.Statuses as List<CollegeManagementSystem.Models.AssignmentStatus>;
+}
+
+<h2>Your Assignments</h2>
+
+<table class="table">
+    <thead><tr><th>Title</th><th>Subject</th><th>Due</th><th>Attachment</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody>
+        @foreach (var a in Model)
+        {
+            var st = statuses?.FirstOrDefault(s => s.AssignmentId == a.Id);
+            <tr>
+                <td>@a.Title</td>
+                <td>@a.Subject?.Name</td>
+                <td>@a.DueDate.ToLocalTime()</td>
+                <td>
+                    @if (!string.IsNullOrEmpty(a.AttachmentUrl))
+                    {
+                        <a href="/Assignments/Download/@a.Id">Download</a>
+                    }
+                </td>
+                <td>@(st?.Status.ToString() ?? "Pending")</td>
+                <td>
+                    <form method="post" asp-action="SetStatus" asp-controller="Student">
+                        <input type="hidden" name="assignmentId" value="@a.Id" />
+                        <select name="status" class="form-select d-inline-block" style="width:150px">
+                            <option value="Pending" selected>Pending</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Done">Done</option>
+                        </select>
+                        <button class="btn btn-sm btn-primary">Save</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

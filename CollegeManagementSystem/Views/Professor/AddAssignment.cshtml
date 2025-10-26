@@ -1,0 +1,24 @@
+@model CollegeManagementSystem.ViewModels.AddAssignmentViewModel
+@{
+    ViewData["Title"] = "Add Assignment";
+}
+<h2>Add Assignment</h2>
+
+<form method="post" enctype="multipart/form-data" asp-action="AddAssignment">
+    <div class="mb-3"><label>Title</label><input asp-for="Title" class="form-control" /></div>
+    <div class="mb-3"><label>Description</label><textarea asp-for="Description" class="form-control"></textarea></div>
+    <div class="mb-3"><label>Subject</label>
+        <select asp-for="SubjectId" class="form-control">
+            @foreach (var s in ViewBag.Subjects as List<CollegeManagementSystem.Models.Subject>)
+            {
+                <option value="@s.Id">@s.Name</option>
+            }
+        </select>
+    </div>
+    <div class="mb-3"><label>Year</label><input asp-for="Year" class="form-control" /></div>
+    <div class="mb-3"><label>Semester</label><select asp-for="Semester" class="form-control" asp-items="Html.GetEnumSelectList<CollegeManagementSystem.Models.Semester>()"></select></div>
+    <div class="mb-3"><label>Branch</label><select asp-for="Branch" class="form-control" asp-items="Html.GetEnumSelectList<CollegeManagementSystem.Models.Branch>()"></select></div>
+    <div class="mb-3"><label>Due Date</label><input asp-for="DueDate" class="form-control" type="datetime-local" /></div>
+    <div class="mb-3"><label>Attachment (PDF/PNG/JPG)</label><input asp-for="Attachment" type="file" class="form-control" /></div>
+    <button class="btn btn-primary">Save</button>
+</form>
