@@ -61,7 +61,7 @@ If you don’t have the EF CLI tools installed:
 
 dotnet tool install --global dotnet-ef
 
-🚀 Running the Project
+ Running the Project
 
 
 
