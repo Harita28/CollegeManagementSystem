@@ -11,43 +11,52 @@ namespace CollegeManagementSystem.Controllers
     public class ProfessorController : Controller
     {
         private readonly ApplicationDbContext _db;
-        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly UserManager<ApplicationUser> _users;
         private readonly IWebHostEnvironment _env;
 
-        public ProfessorController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, IWebHostEnvironment env)
+        public ProfessorController(ApplicationDbContext db, UserManager<ApplicationUser> users, IWebHostEnvironment env)
         {
             _db = db;
-            _userManager = userManager;
+            _users = users;
             _env = env;
         }
 
+        public IActionResult Index() => View();
+
         public IActionResult AddAssignment()
         {
-            ViewBag.Subjects = _db.ProfessorSubjects
-                .Where(ps => ps.ProfessorId == _userManager.GetUserId(User))
+            var profId = _users.GetUserId(User);
+            var subjects = _db.ProfessorSubjects
+                .Where(ps => ps.ProfessorId == profId)
                 .Select(ps => ps.Subject)
                 .ToList();
 
-            return View();
+            ViewBag.Subjects = subjects;
+            return View(new AddAssignmentViewModel());
         }
 
         [HttpPost]
         public async Task<IActionResult> AddAssignment(AddAssignmentViewModel vm)
         {
-            if (!ModelState.IsValid) return View(vm);
+            if (!ModelState.IsValid)
+            {
+                var profId = _users.GetUserId(User);
+                ViewBag.Subjects = _db.ProfessorSubjects.Where(ps => ps.ProfessorId == profId).Select(ps => ps.Subject).ToList();
+                return View(vm);
+            }
 
-            string? filePath = null;
+            string? fileUrl = null;
             if (vm.Attachment != null)
             {
                 var uploads = Path.Combine(_env.WebRootPath, "uploads", "assignments");
                 if (!Directory.Exists(uploads)) Directory.CreateDirectory(uploads);
-                var filename = $"{Guid.NewGuid()}_{vm.Attachment.FileName}";
-                var full = Path.Combine(uploads, filename);
+                var fname = $"{Guid.NewGuid()}_{Path.GetFileName(vm.Attachment.FileName)}";
+                var full = Path.Combine(uploads, fname);
                 using (var fs = new FileStream(full, FileMode.Create))
                 {
                     await vm.Attachment.CopyToAsync(fs);
                 }
-                filePath = $"/uploads/assignments/{filename}";
+                fileUrl = $"/uploads/assignments/{fname}";
             }
 
             var assignment = new Assignment
@@ -59,14 +68,14 @@ namespace CollegeManagementSystem.Controllers
                 Semester = vm.Semester,
                 Branch = vm.Branch,
                 DueDate = vm.DueDate,
-                AttachmentUrl = filePath,
-                CreatedById = _userManager.GetUserId(User)
+                AttachmentUrl = fileUrl,
+                CreatedById = _users.GetUserId(User)
             };
 
             _db.Assignments.Add(assignment);
             await _db.SaveChangesAsync();
 
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction("Index");
         }
     }
 }

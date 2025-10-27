@@ -7,9 +7,7 @@ namespace CollegeManagementSystem.Data
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
-            : base(options)
-        {
-        }
+            : base(options) { }
 
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<ProfessorSubject> ProfessorSubjects { get; set; }
@@ -20,25 +18,28 @@ namespace CollegeManagementSystem.Data
         {
             base.OnModelCreating(builder);
 
-            // Enums mapping to strings
+            // Conversions for enums -> string (keeps DB readable)
             builder.Entity<ApplicationUser>().Property(u => u.Role).HasConversion<string>();
-            builder.Entity<ApplicationUser>().Property(u => u.Branch).HasConversion<string>();
+            builder.Entity<ApplicationUser>().Property(u => u.Branch).HasConversion<string?>();
+
             builder.Entity<Assignment>().Property(a => a.Branch).HasConversion<string>();
             builder.Entity<Assignment>().Property(a => a.Semester).HasConversion<string>();
             builder.Entity<Subject>().Property(s => s.Branch).HasConversion<string>();
             builder.Entity<Subject>().Property(s => s.Semester).HasConversion<string>();
             builder.Entity<AssignmentStatus>().Property(s => s.Status).HasConversion<string>();
 
-            // Relations
+            // Relationships
             builder.Entity<ProfessorSubject>()
                 .HasOne(ps => ps.Professor)
                 .WithMany()
-                .HasForeignKey(ps => ps.ProfessorId);
+                .HasForeignKey(ps => ps.ProfessorId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             builder.Entity<ProfessorSubject>()
                 .HasOne(ps => ps.Subject)
                 .WithMany()
-                .HasForeignKey(ps => ps.SubjectId);
+                .HasForeignKey(ps => ps.SubjectId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             builder.Entity<Assignment>()
                 .HasOne(a => a.Subject)

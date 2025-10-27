@@ -265,3 +265,4 @@ D:\000clg\sem5\dotnet\CollegeManagementSystem\CollegeManagementSystem\obj\Debug\
 D:\000clg\sem5\dotnet\CollegeManagementSystem\CollegeManagementSystem\obj\Debug\net9.0\CollegeManagementSystem.pdb
 D:\000clg\sem5\dotnet\CollegeManagementSystem\CollegeManagementSystem\obj\Debug\net9.0\CollegeManagementSystem.genruntimeconfig.cache
 D:\000clg\sem5\dotnet\CollegeManagementSystem\CollegeManagementSystem\obj\Debug\net9.0\ref\CollegeManagementSystem.dll
+D:\000clg\sem5\dotnet\CollegeManagementSystem\CollegeManagementSystem\obj\Debug\net9.0\CollegeManagementSystem.sourcelink.json

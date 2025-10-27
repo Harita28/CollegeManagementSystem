@@ -4,73 +4,49 @@ using CollegeManagementSystem.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace CollegeManagementSystem.Controllers
 {
-    [Authorize(Roles = "SuperAdmin,Admin")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
     public class AdminController : Controller
     {
-        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly UserManager<ApplicationUser> _users;
         private readonly ApplicationDbContext _db;
 
-        public AdminController(UserManager<ApplicationUser> userManager, ApplicationDbContext db)
+        public AdminController(UserManager<ApplicationUser> users, ApplicationDbContext db)
         {
-            _userManager = userManager;
+            _users = users;
             _db = db;
         }
 
-        [Authorize(Roles = "SuperAdmin")]
-        public IActionResult AddHod()
+        public IActionResult Index()
         {
             return View();
         }
 
-        [HttpPost]
-        [Authorize(Roles = "SuperAdmin")]
-        public async Task<IActionResult> AddHod(AddHodViewModel vm)
+        public IActionResult AddProfessor()
         {
-            if (!ModelState.IsValid) return View(vm);
-            var user = new ApplicationUser
-            {
-                UserName = vm.Email,
-                Email = vm.Email,
-                Name = vm.Name,
-                Role = RoleEnum.Admin,
-                Branch = vm.Branch,
-                EmailConfirmed = true
-            };
-            var res = await _userManager.CreateAsync(user, vm.Password ?? "Hod@123");
-            if (res.Succeeded)
-            {
-                await _userManager.AddToRoleAsync(user, "Admin");
-                // Send email functionality can be added here
-                return RedirectToAction("Index", "SuperAdmin");
-            }
-            foreach (var err in res.Errors) ModelState.AddModelError("", err.Description);
-            return View(vm);
+            // get branch from claim (safe outside LINQ)
+            var branchClaim = User.FindFirst("Branch")?.Value;
+            Branch branch = Branch.Computer;
+            if (!string.IsNullOrEmpty(branchClaim) && Enum.TryParse(branchClaim, out Branch parsed)) branch = parsed;
+
+            ViewBag.Subjects = _db.Subjects.Where(s => s.Branch == branch).ToList();
+            return View(new AddProfessorViewModel { Branch = branch });
         }
 
-      [Authorize(Roles = "Admin")]
-public IActionResult AddProfessor()
-{
-    var branchClaim = User.FindFirst("Branch")?.Value;
-    Branch branchEnum = Branch.Computer; // default
-    if (!string.IsNullOrEmpty(branchClaim) && Enum.TryParse(branchClaim, out Branch parsed))
-        branchEnum = parsed;
-
-    ViewBag.Subjects = _db.Subjects
-        .Where(s => s.Branch == branchEnum)
-        .ToList();
-
-    return View();
-}
-
-
         [HttpPost]
-        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> AddProfessor(AddProfessorViewModel vm)
         {
-            if (!ModelState.IsValid) return View(vm);
+            if (!ModelState.IsValid)
+            {
+                var branchClaim = User.FindFirst("Branch")?.Value;
+                Branch branch = Branch.Computer;
+                if (!string.IsNullOrEmpty(branchClaim) && Enum.TryParse(branchClaim, out Branch parsed)) branch = parsed;
+                ViewBag.Subjects = _db.Subjects.Where(s => s.Branch == branch).ToList();
+                return View(vm);
+            }
 
             var user = new ApplicationUser
             {
@@ -81,27 +57,42 @@ public IActionResult AddProfessor()
                 Branch = vm.Branch,
                 EmailConfirmed = true
             };
-            var res = await _userManager.CreateAsync(user, vm.Password ?? "Prof@123");
-            if (res.Succeeded)
+
+            var res = await _users.CreateAsync(user, vm.Password ?? "Prof@123");
+            if (!res.Succeeded)
             {
-                await _userManager.AddToRoleAsync(user, "Professor");
-                // assign subjects
-                if (vm.SubjectIds != null)
-                {
-                    foreach (var sid in vm.SubjectIds)
-                    {
-                        _db.ProfessorSubjects.Add(new ProfessorSubject
-                        {
-                            ProfessorId = user.Id,
-                            SubjectId = sid
-                        });
-                    }
-                    await _db.SaveChangesAsync();
-                }
-                return RedirectToAction("Index", "Home");
+                foreach (var e in res.Errors) ModelState.AddModelError("", e.Description);
+                ViewBag.Subjects = _db.Subjects.Where(s => s.Branch == vm.Branch).ToList();
+                return View(vm);
             }
-            foreach (var err in res.Errors) ModelState.AddModelError("", err.Description);
-            return View(vm);
+
+            await _users.AddToRoleAsync(user, "Professor");
+            await _users.AddClaimAsync(user, new Claim("Branch", vm.Branch.ToString()));
+
+            if (vm.SubjectIds != null && vm.SubjectIds.Length > 0)
+            {
+                foreach (var sId in vm.SubjectIds)
+                {
+                    _db.ProfessorSubjects.Add(new ProfessorSubject
+                    {
+                        ProfessorId = user.Id,
+                        SubjectId = sId
+                    });
+                }
+                await _db.SaveChangesAsync();
+            }
+
+            return RedirectToAction("Index");
+        }
+
+        public IActionResult ViewProfessors()
+        {
+            var branchClaim = User.FindFirst("Branch")?.Value;
+            Branch branch = Branch.Computer;
+            if (!string.IsNullOrEmpty(branchClaim) && Enum.TryParse(branchClaim, out Branch parsed)) branch = parsed;
+
+            var profIds = _db.Users.Where(u => u.Branch == branch && u.Role == RoleEnum.Professor).ToList();
+            return View(profIds);
         }
     }
 }

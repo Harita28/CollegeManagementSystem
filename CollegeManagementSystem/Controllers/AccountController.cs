@@ -2,22 +2,21 @@ using CollegeManagementSystem.Models;
 using CollegeManagementSystem.ViewModels;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace CollegeManagementSystem.Controllers
 {
     public class AccountController : Controller
     {
-        private readonly UserManager<ApplicationUser> _userManager;
-        private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly SignInManager<ApplicationUser> _signIn;
+        private readonly UserManager<ApplicationUser> _users;
 
-        public AccountController(UserManager<ApplicationUser> userManager,
-            SignInManager<ApplicationUser> signInManager)
+        public AccountController(SignInManager<ApplicationUser> signIn, UserManager<ApplicationUser> users)
         {
-            _userManager = userManager;
-            _signInManager = signInManager;
+            _signIn = signIn;
+            _users = users;
         }
 
-        // GET: /Account/Login
         public IActionResult Login(string returnUrl = null)
         {
             return View(new LoginViewModel { ReturnUrl = returnUrl });
@@ -28,23 +27,34 @@ namespace CollegeManagementSystem.Controllers
         {
             if (!ModelState.IsValid) return View(vm);
 
-            var user = await _userManager.FindByEmailAsync(vm.Email);
-            if (user == null) { ModelState.AddModelError("", "Invalid login."); return View(vm); }
+            var user = await _users.FindByEmailAsync(vm.Email);
+            if (user == null) { ModelState.AddModelError("", "Invalid credentials"); return View(vm); }
 
-            var result = await _signInManager.PasswordSignInAsync(user, vm.Password, false, false);
-            if (result.Succeeded)
+            var res = await _signIn.PasswordSignInAsync(user, vm.Password, isPersistent: false, lockoutOnFailure: false);
+            if (!res.Succeeded) { ModelState.AddModelError("", "Invalid credentials"); return View(vm); }
+
+            // Determine role and redirect to the correct dashboard
+            var roles = await _users.GetRolesAsync(user);
+            var role = roles.FirstOrDefault();
+
+            string? redirect = vm.ReturnUrl;
+            if (string.IsNullOrEmpty(redirect))
             {
-                return Redirect(vm.ReturnUrl ?? "/");
+                redirect = role switch
+                {
+                    "SuperAdmin" => Url.Action("Index", "SuperAdmin"),
+                    "Admin" => Url.Action("Index", "Admin"),
+                    "Professor" => Url.Action("Index", "Professor"),
+                    "Student" => Url.Action("Index", "Student"),
+                    _ => Url.Action("Index", "Home")
+                };
             }
-            ModelState.AddModelError("", "Invalid login attempt.");
-            return View(vm);
+
+            return Redirect(redirect ?? "/");
         }
 
-        public IActionResult RegisterStudent()
-        {
-            return View(new RegisterStudentViewModel());
-        }
-
+        public IActionResult RegisterStudent() => View(new RegisterStudentViewModel());
+        
         [HttpPost]
         public async Task<IActionResult> RegisterStudent(RegisterStudentViewModel vm)
         {
@@ -55,26 +65,31 @@ namespace CollegeManagementSystem.Controllers
                 UserName = vm.Email,
                 Email = vm.Email,
                 Name = vm.Name,
-                EmailConfirmed = true,
                 Role = RoleEnum.Student,
                 Branch = vm.Branch,
                 Semester = vm.Semester,
-                Year = vm.Year
+                Year = vm.Year,
+                EmailConfirmed = true
             };
-            var result = await _userManager.CreateAsync(user, vm.Password);
-            if (result.Succeeded)
+
+            var create = await _users.CreateAsync(user, vm.Password);
+            if (!create.Succeeded)
             {
-                await _userManager.AddToRoleAsync(user, "Student");
-                await _signInManager.SignInAsync(user, isPersistent: false);
-                return RedirectToAction("Index", "Home");
+                foreach (var e in create.Errors) ModelState.AddModelError("", e.Description);
+                return View(vm);
             }
-            foreach (var err in result.Errors) ModelState.AddModelError("", err.Description);
-            return View(vm);
+
+            await _users.AddToRoleAsync(user, "Student");
+            // add Branch claim so controllers can filter
+            await _users.AddClaimAsync(user, new Claim("Branch", vm.Branch.ToString()));
+
+            await _signIn.SignInAsync(user, isPersistent: false);
+            return RedirectToAction("Index", "Student");
         }
 
         public async Task<IActionResult> Logout()
         {
-            await _signInManager.SignOutAsync();
+            await _signIn.SignOutAsync();
             return RedirectToAction("Login");
         }
     }

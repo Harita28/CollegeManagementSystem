@@ -12,55 +12,68 @@ namespace CollegeManagementSystem.Data
             var userMgr = services.GetRequiredService<UserManager<ApplicationUser>>();
             var db = services.GetRequiredService<ApplicationDbContext>();
 
-            // Create roles
+            // Roles
             string[] roles = new[] { "SuperAdmin", "Admin", "Professor", "Student" };
-            foreach (var role in roles)
+            foreach (var r in roles)
             {
-                if (!await roleMgr.RoleExistsAsync(role))
-                    await roleMgr.CreateAsync(new IdentityRole(role));
+                if (!await roleMgr.RoleExistsAsync(r))
+                    await roleMgr.CreateAsync(new IdentityRole(r));
             }
 
-            // Create superadmin
-            var superEmail = "superadmin@college.local";
-            var super = await userMgr.FindByEmailAsync(superEmail);
-            if (super == null)
+            // Desired seeded SuperAdmin credentials
+            var superEmail = "superadmin@college.login";
+            var superPassword = "123";
+
+            var existing = await userMgr.FindByEmailAsync(superEmail);
+            if (existing == null)
             {
-                var adminUser = new ApplicationUser
+                var super = new ApplicationUser
                 {
                     UserName = superEmail,
                     Email = superEmail,
                     Name = "Super Admin",
-                    Role = RoleEnum.SuperAdmin
+                    Role = RoleEnum.SuperAdmin,
+                    EmailConfirmed = true
                 };
-                var result = await userMgr.CreateAsync(adminUser, "Super@123"); // Change password later
-                if (result.Succeeded)
+
+                var create = await userMgr.CreateAsync(super, superPassword);
+                if (create.Succeeded)
                 {
-                    await userMgr.AddToRoleAsync(adminUser, "SuperAdmin");
+                    await userMgr.AddToRoleAsync(super, "SuperAdmin");
+                }
+                else
+                {
+                    // If it fails (rare), try to surface first error to console
+                    var firstError = create.Errors.FirstOrDefault()?.Description ?? "Unknown error creating SuperAdmin";
+                    Console.WriteLine("Error creating SuperAdmin: " + firstError);
+                }
+            }
+            else
+            {
+                // ensure role
+                if (!await userMgr.IsInRoleAsync(existing, "SuperAdmin"))
+                    await userMgr.AddToRoleAsync(existing, "SuperAdmin");
+
+                // Reset the password to the requested one
+                // To reset, remove the existing password (if any) and add a new one via token flow
+                var token = await userMgr.GeneratePasswordResetTokenAsync(existing);
+                var resetRes = await userMgr.ResetPasswordAsync(existing, token, superPassword);
+                if (!resetRes.Succeeded)
+                {
+                    Console.WriteLine("Failed to reset SuperAdmin password. Errors:");
+                    foreach (var e in resetRes.Errors) Console.WriteLine(e.Description);
                 }
             }
 
-            // Seed Subjects if none
+            // seed example subjects if empty
             if (!db.Subjects.Any())
             {
-                var branches = Enum.GetValues(typeof(Branch)).Cast<Branch>();
-                var semesters = Enum.GetValues(typeof(Semester)).Cast<Semester>();
-
-                foreach (var b in branches)
+                db.Subjects.AddRange(new[]
                 {
-                    foreach (var s in semesters)
-                    {
-                        // Add 3 sample subjects per sem for demo
-                        for (int i = 1; i <= 3; i++)
-                        {
-                            db.Subjects.Add(new Subject
-                            {
-                                Name = $"{b} - Subj {s} - {i}",
-                                Branch = b,
-                                Semester = s
-                            });
-                        }
-                    }
-                }
+                    new Subject { Name = "Programming Fundamentals", Branch = Branch.Computer, Semester = Semester.SEM1 },
+                    new Subject { Name = "Engineering Mathematics I", Branch = Branch.Computer, Semester = Semester.SEM1 },
+                    new Subject { Name = "Data Structures", Branch = Branch.Computer, Semester = Semester.SEM3 }
+                });
                 await db.SaveChangesAsync();
             }
         }

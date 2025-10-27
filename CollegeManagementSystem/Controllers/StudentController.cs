@@ -11,26 +11,26 @@ namespace CollegeManagementSystem.Controllers
     public class StudentController : Controller
     {
         private readonly ApplicationDbContext _db;
-        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly UserManager<ApplicationUser> _users;
 
-        public StudentController(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
+        public StudentController(ApplicationDbContext db, UserManager<ApplicationUser> users)
         {
             _db = db;
-            _userManager = userManager;
+            _users = users;
         }
+
+        public async Task<IActionResult> Index() => View();
 
         public async Task<IActionResult> Assignments()
         {
-            var userId = _userManager.GetUserId(User);
-            var user = await _userManager.FindByIdAsync(userId);
+            var user = await _users.GetUserAsync(User);
+            if (user == null) return RedirectToAction("Login", "Account");
 
-            var assignments = await _db.Assignments
-                .Include(a => a.Subject)
+            var assignments = await _db.Assignments.Include(a => a.Subject)
                 .Where(a => a.Branch == user.Branch && a.Semester == user.Semester && a.Year == (user.Year ?? a.Year))
                 .ToListAsync();
 
-            var statuses = await _db.AssignmentStatuses.Where(s => s.StudentId == userId).ToListAsync();
-
+            var statuses = await _db.AssignmentStatuses.Where(s => s.StudentId == user.Id).ToListAsync();
             ViewBag.Statuses = statuses;
             return View(assignments);
         }
@@ -38,18 +38,18 @@ namespace CollegeManagementSystem.Controllers
         [HttpPost]
         public async Task<IActionResult> SetStatus(long assignmentId, AssignmentStatusEnum status)
         {
-            var userId = _userManager.GetUserId(User);
-            var existing = _db.AssignmentStatuses.FirstOrDefault(s => s.AssignmentId == assignmentId && s.StudentId == userId);
+            var user = await _users.GetUserAsync(User);
+            if (user == null) return RedirectToAction("Login", "Account");
+
+            var existing = await _db.AssignmentStatuses.FirstOrDefaultAsync(s => s.AssignmentId == assignmentId && s.StudentId == user.Id);
             if (existing == null)
             {
-                existing = new AssignmentStatus { AssignmentId = assignmentId, StudentId = userId, Status = status };
-                _db.AssignmentStatuses.Add(existing);
+                _db.AssignmentStatuses.Add(new AssignmentStatus { AssignmentId = assignmentId, StudentId = user.Id, Status = status });
             }
             else
             {
                 existing.Status = status;
                 existing.UpdatedAt = DateTime.UtcNow;
-                _db.AssignmentStatuses.Update(existing);
             }
             await _db.SaveChangesAsync();
             return RedirectToAction("Assignments");
